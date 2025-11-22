@@ -1,0 +1,103 @@
+const firestoreRules = `
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isValidUser() {
+      return isAuthenticated() && 
+             request.resource.data.keys().hasAll(['name', 'phone', 'location', 'preferredLanguage']);
+    }
+    
+    function isValidDetection() {
+      return request.resource.data.keys().hasAll([
+        'userId', 'cropType', 'disease', 'confidence', 'timestamp'
+      ]) &&
+      request.resource.data.confidence >= 0 && 
+      request.resource.data.confidence <= 1;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Users can read/write only their own data
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser();
+      allow update: if isOwner(userId) && isValidUser();
+      allow delete: if isOwner(userId);
+      
+      // User's farms subcollection
+      match /farms/{farmId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+    
+    // Detections collection
+    match /detections/{detectionId} {
+      // Users can read their own detections
+      allow read: if isAuthenticated() && 
+                    resource.data.userId == request.auth.uid;
+      
+      // Users can create detections with their userId
+      allow create: if isAuthenticated() &&
+                      request.resource.data.userId == request.auth.uid &&
+                      isValidDetection();
+      
+      // Users can update their own detections
+      allow update: if isAuthenticated() &&
+                      resource.data.userId == request.auth.uid;
+      
+      // Users can delete their own detections
+      allow delete: if isAuthenticated() &&
+                      resource.data.userId == request.auth.uid;
+    }
+    
+    // Alerts collection
+    match /alerts/{alertId} {
+      // Users can read their own alerts
+      allow read: if isAuthenticated() &&
+                    resource.data.userId == request.auth.uid;
+      
+      // Only server (Cloud Functions) can create/update/delete alerts
+      allow write: if false;
+    }
+    
+    // Weather cache - read-only for all authenticated users
+    match /weather_cache/{locationId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only Cloud Functions can write
+    }
+    
+    // NASC seed data - read-only for all authenticated users
+    match /nasc_seeds/{cropType} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only Cloud Functions can write
+    }
+    
+    // Outbreaks - read for all authenticated, write only by Cloud Functions
+    match /outbreaks/{outbreakId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    // Analytics aggregations - read-only
+    match /analytics/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    // Admin collection - only for admin users
+    match /admin/{document=**} {
+      allow read, write: if isAuthenticated() && 
+                           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+  }
+}
+`;
