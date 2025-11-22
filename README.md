@@ -40,10 +40,10 @@ chmod +x scripts/*.sh
 
 ### 4. Deploy Firebase Configuration
 
-\`\`\`bash
+
 # Deploy all Firebase resources
 ./scripts/deploy.sh
-\`\`\`
+
 
 This will deploy:
 - ✅ Firestore security rules
@@ -53,10 +53,10 @@ This will deploy:
 
 ### 5. Generate Sample Data (Optional)
 
-\`\`\`bash
+
 # Generate test data for development
 node scripts/generate-sample-data.js
-\`\`\`
+
 
 This creates:
 - 8 sample farmer accounts
